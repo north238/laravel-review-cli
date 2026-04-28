@@ -1,0 +1,17 @@
+.claude/settings.local.json
+
+# Go
+*.exe
+*.out
+/vendor/
+tmp/
+
+# 環境変数
+.env
+
+# OS
+.DS_Store
+
+# ビルドファイル
+bin/
+build/
