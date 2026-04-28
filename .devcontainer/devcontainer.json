@@ -1,12 +1,8 @@
 {
   "name": "lrv Dev Container",
-  "build": {
-    "dockerfile": "../Dockerfile",
-    "target": "dev"
-  },
-  "mounts": [
-    "source=lrv-go-cache,target=/root/go/pkg/mod,type=volume"
-  ],
+  "dockerComposeFile": "../docker-compose.yml",
+  "service": "dev",
+  "workspaceFolder": "/app",
   "remoteEnv": {
     "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
     "LRV_MODEL": "${localEnv:LRV_MODEL}",

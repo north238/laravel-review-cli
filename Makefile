@@ -1,21 +1,13 @@
-.PHONY: deps build test vet fmt shell
-
-deps:
-	docker compose run --rm dev go get github.com/spf13/cobra
-	docker compose run --rm dev go get golang.org/x/sync/errgroup
-	docker compose run --rm dev go mod tidy
+.PHONY: build test vet fmt
 
 build:
-	docker compose run --rm dev go build -o bin/lrv ./cmd/lrv/
+	go build -o bin/lrv ./cmd/lrv/
 
 test:
-	docker compose run --rm dev go test ./...
+	go test ./...
 
 vet:
-	docker compose run --rm dev go vet ./...
+	go vet ./...
 
 fmt:
-	docker compose run --rm dev gofmt -l .
-
-shell:
-	docker compose run --rm dev sh
+	gofmt -l .
