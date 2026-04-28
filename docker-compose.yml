@@ -1,0 +1,16 @@
+services:
+  dev:
+    build:
+      context: .
+      target: dev
+    volumes:
+      - .:/app
+      - go-cache:/root/go/pkg/mod
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - LRV_MODEL=${LRV_MODEL:-}
+      - LRV_TIMEOUT=${LRV_TIMEOUT:-120}
+    working_dir: /app
+
+volumes:
+  go-cache:
