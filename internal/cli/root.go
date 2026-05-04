@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 
+	"github.com/north238/lrv/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -15,6 +16,11 @@ func NewRootCommand() *cobra.Command {
 		Long:  "lrvはLaravelプロジェクトのプルリクエスト作成前にLLMを用いたセルフレビューを実行するCLIツールです。パフォーマンス・セキュリティ・設計の3観点を並行してレビューし、確信度付きの指摘をMarkdown形式で出力します。",
 
 		RunE: func(cmd *cobra.Command, args []string) error {
+			_, err := config.NewConfig()
+			if err != nil {
+				return fmt.Errorf("invalid to config: %v", err)
+			}
+
 			focusList := map[string]bool{
 				"performance": true,
 				"security":    true,
@@ -29,6 +35,7 @@ func NewRootCommand() *cobra.Command {
 		},
 	}
 
+	rootCmd.SilenceUsage = true
 	rootCmd.Flags().StringVar(&opts.BaseBranch, "base", "", "差分取得時のベースブランチを指定")
 	rootCmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "出力先を指定")
 	rootCmd.Flags().StringSliceVar(&opts.Focus, "focus", []string{}, "レビュー観点を絞り込む")
