@@ -5,6 +5,7 @@ import (
 	"os/exec"
 )
 
+// 現在のディレクトリがGitリポジトリ配下かどうかを確認する
 func IsGitRepository(ctx context.Context) error {
 	// コマンドの作成
 	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--git-dir")
