@@ -20,6 +20,7 @@ type ChangedFile struct {
 	FullContent string
 }
 
+// 現在のブランチとベースブランチ間の差分情報を取得する
 func GetDiff(ctx context.Context, baseBranch string) (*DiffContext, error) {
 	if err := IsGitRepository(ctx); err != nil {
 		return nil, err
