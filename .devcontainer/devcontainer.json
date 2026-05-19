@@ -3,16 +3,9 @@
   "dockerComposeFile": "../docker-compose.yml",
   "service": "dev",
   "workspaceFolder": "/app",
-  "remoteEnv": {
-    "ANTHROPIC_API_KEY": "${localEnv:ANTHROPIC_API_KEY}",
-    "LRV_MODEL": "${localEnv:LRV_MODEL}",
-    "LRV_TIMEOUT": "${localEnv:LRV_TIMEOUT}"
-  },
   "customizations": {
     "vscode": {
-      "extensions": [
-        "golang.go"
-      ],
+      "extensions": ["golang.go"],
       "settings": {
         "[go]": {
           "editor.formatOnSave": true,
