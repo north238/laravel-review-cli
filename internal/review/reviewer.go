@@ -23,7 +23,7 @@ func parseFindings(content string, aspect Aspect) ([]Finding, error) {
 	var responseFindings Findings
 	err := json.Unmarshal([]byte(content), &responseFindings)
 	if err != nil {
-		return nil, fmt.Errorf("【ERROR】faild to json parse: %w", err)
+		return nil, fmt.Errorf("【ERROR】failed to json parse: %w", err)
 	}
 
 	// []Contentを[]Findingに変換
