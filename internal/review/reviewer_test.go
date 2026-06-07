@@ -79,7 +79,7 @@ func Test_parseFindings(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, gotErr := parseFindings(tt.content, tt.aspect)
+			got, gotErr := ParseFindings(tt.content, tt.aspect)
 			if gotErr != nil {
 				if !tt.wantErr {
 					t.Errorf("parseFindings() failed: %v", gotErr)

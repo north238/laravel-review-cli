@@ -19,7 +19,7 @@ type Content struct {
 	CodeSnippet string `json:"code_snippet"`
 }
 
-func parseFindings(content string, aspect Aspect) ([]Finding, error) {
+func ParseFindings(content string, aspect Aspect) ([]Finding, error) {
 	var responseFindings Findings
 	err := json.Unmarshal([]byte(content), &responseFindings)
 	if err != nil {
