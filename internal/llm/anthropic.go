@@ -110,11 +110,17 @@ func (c *AnthropicClient) Review(ctx context.Context, req ReviewRequest) (*Revie
 	defer resp.Body.Close()
 
 	// レスポンスのステータス確認
+	// 401認証エラー
 	if resp.StatusCode == http.StatusUnauthorized {
 		return nil, ErrAPIAuthFailed
 	}
+	// 500系エラー
 	if resp.StatusCode >= http.StatusInternalServerError {
-		return nil, ErrAPINoResponse
+		return nil, ErrAPIUnexpectedResponse
+	}
+	// それ以外400系など
+	if resp.StatusCode >= 400 {
+		return nil, ErrAPIUnexpectedResponse
 	}
 
 	// レスポンスボディーの取り出し
@@ -138,7 +144,7 @@ func (c *AnthropicClient) Review(ctx context.Context, req ReviewRequest) (*Revie
 		}
 	}
 	if content == "" {
-		return nil, ErrAPINoResponse
+		return nil, ErrAPIUnexpectedResponse
 	}
 
 	// レスポンス返却

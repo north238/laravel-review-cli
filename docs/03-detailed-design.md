@@ -607,8 +607,10 @@ var (
 func main() {
     if err := run(); err != nil {
         exitCode := determineExitCode(err)
-        fmt.Fprintln(os.Stderr, err.Error())
-        os.Exit(exitCode)
+        if exitCode != 0 {
+            fmt.Fprintln(os.Stderr, err.Error())
+            os.Exit(exitCode)
+        }
     }
 }
 
@@ -620,7 +622,8 @@ func determineExitCode(err error) int {
          errors.Is(err, llm.ErrAPIKeyMissing):
         return 2
     case errors.Is(err, llm.ErrAPITimeout),
-         errors.Is(err, llm.ErrAPIAuthFailed):
+         errors.Is(err, llm.ErrAPIAuthFailed),
+         errors.Is(err, llm.ErrAPIUnexpectedResponse):
         return 3
     default:
         return 4

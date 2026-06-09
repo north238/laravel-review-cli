@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 )
 
 type Findings struct {
@@ -19,7 +20,10 @@ type Content struct {
 	CodeSnippet string `json:"code_snippet"`
 }
 
-func parseFindings(content string, aspect Aspect) ([]Finding, error) {
+func ParseFindings(content string, aspect Aspect) ([]Finding, error) {
+	content = strings.ReplaceAll(content, "```json", "")
+	content = strings.ReplaceAll(content, "```", "")
+
 	var responseFindings Findings
 	err := json.Unmarshal([]byte(content), &responseFindings)
 	if err != nil {
