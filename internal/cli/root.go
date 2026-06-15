@@ -53,7 +53,7 @@ func NewRootCommand() *cobra.Command {
 				return fmt.Errorf("invalid to GetDiff: %v", err)
 			}
 
-			systemPrompt, userPrompt := prompt.NewPerformanceProvider().BuildPrompt(diffCtx)
+			systemPrompt, userPrompt := prompt.NewDesignProvider().BuildPrompt(diffCtx)
 
 			req := llm.ReviewRequest{
 				SystemPrompt: systemPrompt,
@@ -74,13 +74,13 @@ func NewRootCommand() *cobra.Command {
 			duration := time.Since(startTime)
 
 			// 返却値のパース処理
-			result, err := review.ParseFindings(resp.Content, review.AspectPerformance)
+			result, err := review.ParseFindings(resp.Content, review.AspectDesign)
 			if err != nil {
 				return fmt.Errorf("invalid to ParseFindings: %v", err)
 			}
 
 			aggregatedResult := review.AggregatedResult{
-				Results:  []review.ReviewResult{{Aspect: review.AspectPerformance, Findings: result, Error: nil}},
+				Results:  []review.ReviewResult{{Aspect: review.AspectDesign, Findings: result, Error: nil}},
 				Metadata: review.ResultMetadata{BaseBranch: opts.BaseBranch, CurrentBranch: diffCtx.CurrentBranch, FileCount: len(diffCtx.Files), ExecutedAt: startTime, Duration: duration},
 			}
 
