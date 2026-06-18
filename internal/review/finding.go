@@ -10,14 +10,6 @@ type Finding struct {
 	CodeSnippet string     // 該当コード
 }
 
-type Aspect string
-
-const (
-	AspectPerformance Aspect = "performance"
-	AspectSecurity    Aspect = "security"
-	AspectDesign      Aspect = "design"
-)
-
 type Confidence string
 
 const (

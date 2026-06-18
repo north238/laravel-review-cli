@@ -67,7 +67,7 @@ cmd → cli → review → git / llm → prompt
 ### 主要インターフェース
 
 - `llm.Client` — `Review(ctx, req) (*ReviewResponse, error)` でプロバイダを抽象化（Anthropic実装あり、テスト用Mockあり）
-- `prompt.Provider` — `Aspect()` と `BuildPrompt(diffCtx)` で観点別プロンプト生成を抽象化（新観点追加時はここを実装）
+- `Provider` — `Aspect()` と `BuildPrompt(diffCtx)` で観点別プロンプト生成を抽象化（新観点追加時はここを実装）
 - `output.Formatter` — `Format(w, result)` で出力形式を抽象化
 
 ### 並行処理設計

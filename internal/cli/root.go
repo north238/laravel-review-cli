@@ -26,7 +26,7 @@ func NewRootCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			config, err := config.NewConfig()
 			if err != nil {
-				return fmt.Errorf("invalid to config: %v", err)
+				return fmt.Errorf("failed to config: %v", err)
 			}
 
 			focusList := map[string]bool{
@@ -42,7 +42,7 @@ func NewRootCommand() *cobra.Command {
 
 			client, err := llm.NewAnthropicClient(config.APIKey)
 			if err != nil {
-				return fmt.Errorf("invalid to NewAnthropicClient: %v", err)
+				return fmt.Errorf("failed to NewAnthropicClient: %v", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.Timeout)*time.Second)
@@ -50,45 +50,27 @@ func NewRootCommand() *cobra.Command {
 
 			diffCtx, err := git.GetDiff(ctx, opts.BaseBranch)
 			if err != nil {
-				return fmt.Errorf("invalid to GetDiff: %v", err)
+				return fmt.Errorf("failed to GetDiff: %v", err)
 			}
 
-			systemPrompt, userPrompt := prompt.NewDesignProvider().BuildPrompt(diffCtx)
-
-			req := llm.ReviewRequest{
-				SystemPrompt: systemPrompt,
-				UserPrompt:   userPrompt,
-				Model:        config.Model,
-				MaxTokens:    4096,
+			providers := []review.Provider{
+				prompt.NewPerformanceProvider(),
+				prompt.NewSecurityProvider(),
+				prompt.NewDesignProvider(),
 			}
 
-			// レビュー実行時間計測開始
-			startTime := time.Now()
+			r := review.NewReviewer(client, providers, config.Model)
 
-			resp, err := client.Review(ctx, req)
+			aggregatedResult, err := r.Run(ctx, diffCtx)
 			if err != nil {
-				return fmt.Errorf("invalid to Review: %v", err)
-			}
-
-			// レビュー実行時間取得
-			duration := time.Since(startTime)
-
-			// 返却値のパース処理
-			result, err := review.ParseFindings(resp.Content, review.AspectDesign)
-			if err != nil {
-				return fmt.Errorf("invalid to ParseFindings: %v", err)
-			}
-
-			aggregatedResult := review.AggregatedResult{
-				Results:  []review.ReviewResult{{Aspect: review.AspectDesign, Findings: result, Error: nil}},
-				Metadata: review.ResultMetadata{BaseBranch: opts.BaseBranch, CurrentBranch: diffCtx.CurrentBranch, FileCount: len(diffCtx.Files), ExecutedAt: startTime, Duration: duration},
+				return fmt.Errorf("failed to Run: %v", err)
 			}
 
 			// ファイル出力
 			formatter := output.MarkdownFormatter{}
-			err = formatter.Format(os.Stdout, &aggregatedResult)
+			err = formatter.Format(os.Stdout, aggregatedResult)
 			if err != nil {
-				return fmt.Errorf("invalid to Format: %v", err)
+				return fmt.Errorf("failed to Format: %v", err)
 			}
 
 			return nil
