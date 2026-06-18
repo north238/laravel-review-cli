@@ -1,11 +1,25 @@
 package review
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
+	"sync"
+	"time"
+
+	"github.com/north238/lrv/internal/git"
+	"github.com/north238/lrv/internal/llm"
+	"golang.org/x/sync/errgroup"
 )
+
+type Reviewer struct {
+	llmClient llm.Client
+	providers []Provider
+	model     string
+}
 
 type Findings struct {
 	Content []Content `json:"findings"`
@@ -20,7 +34,98 @@ type Content struct {
 	CodeSnippet string `json:"code_snippet"`
 }
 
-func ParseFindings(content string, aspect Aspect) ([]Finding, error) {
+func NewReviewer(client llm.Client, providers []Provider, model string) *Reviewer {
+	return &Reviewer{
+		llmClient: client,
+		providers: providers,
+		model:     model,
+	}
+}
+
+func (r *Reviewer) Run(ctx context.Context, diffCtx *git.DiffContext) (*AggregatedResult, error) {
+	eg, groupCtx := errgroup.WithContext(ctx)
+
+	var mu sync.Mutex
+	var results []ReviewResult
+
+	// レビュー実行時間計測開始
+	startTime := time.Now()
+
+	// 各 provider に対する goroutine 起動
+	for _, provider := range r.providers {
+		eg.Go(func() error {
+			result, err := r.reviewOne(groupCtx, provider, diffCtx)
+			if err != nil {
+				return err
+			}
+
+			// mutex による結果スライスの保護
+			mu.Lock()
+			results = append(results, *result)
+			mu.Unlock()
+
+			return nil
+		})
+	}
+
+	if err := eg.Wait(); err != nil {
+		return nil, err
+	}
+
+	// レビュー実行時間取得
+	duration := time.Since(startTime)
+
+	aggregatedResult := &AggregatedResult{
+		Results: results,
+		Metadata: ResultMetadata{
+			BaseBranch:    diffCtx.BaseBranch,
+			CurrentBranch: diffCtx.CurrentBranch,
+			FileCount:     len(diffCtx.Files),
+			ExecutedAt:    startTime,
+			Duration:      duration,
+		},
+	}
+
+	return aggregatedResult, nil
+}
+
+func (r *Reviewer) reviewOne(ctx context.Context, provider Provider, diffCtx *git.DiffContext) (*ReviewResult, error) {
+	// 返却値の構造を宣言（冗長な記述を避けるため）
+	result := &ReviewResult{Aspect: provider.Aspect()}
+
+	// プロンプトを作成する
+	systemPrompt, userPrompt := provider.BuildPrompt(diffCtx)
+	req := llm.ReviewRequest{
+		SystemPrompt: systemPrompt,
+		UserPrompt:   userPrompt,
+		Model:        r.model,
+		MaxTokens:    4096,
+	}
+
+	// LLMへレビューリクエストを投げる
+	resp, err := r.llmClient.Review(ctx, req)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
+
+		result.Error = err
+		return result, nil
+	}
+
+	// LLMからのレスポンスをパースする
+	findings, err := parseFindings(resp.Content, provider.Aspect())
+	if err != nil {
+		result.Error = err
+		return result, nil
+	}
+
+	result.Findings = findings
+	return result, nil
+}
+
+// LLMからのレスポンスをパース
+func parseFindings(content string, aspect Aspect) ([]Finding, error) {
 	content = strings.ReplaceAll(content, "```json", "")
 	content = strings.ReplaceAll(content, "```", "")
 

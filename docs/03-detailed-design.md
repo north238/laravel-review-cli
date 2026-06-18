@@ -283,13 +283,14 @@ type Formatter interface {
 ### 4.3 プロンプトプロバイダインターフェース
 
 観点別のプロンプト生成を抽象化する。
+※循環参照状態になっていたためprovider.go を新たに作成し呼び出し元を変更
 
 ```go
-// internal/prompt/template.go
+// internal/review/provider.go
 
 type Provider interface {
     // Aspect は対象の観点を返す
-    Aspect() review.Aspect
+    Aspect() Aspect
 
     // BuildPrompt は差分情報からLLM送信用のプロンプトを生成する
     BuildPrompt(ctx *git.DiffContext) (systemPrompt, userPrompt string)
@@ -430,10 +431,10 @@ func detectFromCandidates(ctx context.Context, candidates []string) (string, err
 
 type Reviewer struct {
     llmClient llm.Client
-    providers []prompt.Provider
+    providers []Provider
 }
 
-func NewReviewer(client llm.Client, providers []prompt.Provider) *Reviewer
+func NewReviewer(client llm.Client, providers []Provider) *Reviewer
 
 // Run は全観点のレビューを並行実行する
 func (r *Reviewer) Run(ctx context.Context, diffCtx *git.DiffContext) (*AggregatedResult, error)
@@ -445,7 +446,7 @@ func (r *Reviewer) Run(ctx context.Context, diffCtx *git.DiffContext) (*Aggregat
 | ------------ | ------------------------------------------------------ |
 | 実装ファイル | internal/prompt/performance.go, security.go, design.go |
 
-各観点ごとに`prompt.Provider`インターフェースを実装する。プロンプトの詳細は「8. プロンプト設計」で定義。
+各観点ごとに`Provider`インターフェースを実装する。プロンプトの詳細は「8. プロンプト設計」で定義。
 
 ### 5.6 BD-F-008 確信度判定
 

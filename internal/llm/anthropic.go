@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 )
@@ -103,7 +104,7 @@ func (c *AnthropicClient) Review(ctx context.Context, req ReviewRequest) (*Revie
 	resp, err := c.HTTPClient.Do(apiReq)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, ErrAPITimeout
+			return nil, fmt.Errorf("%w: %w", ErrAPITimeout, err)
 		}
 		return nil, err
 	}
