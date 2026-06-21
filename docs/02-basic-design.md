@@ -338,13 +338,14 @@ $ lrv --base develop -o review.md --focus=security,performance
 - ベースブランチ: main
 - 現在のブランチ: feature/user-management
 - 変更ファイル数: 7
-- 実行時刻: 2026-04-24 09:15:00
+- 実行時刻: 2026/04/24 15:15:00
+- 実行時間: 3.2s
 
 ---
 
 ## app/Http/Controllers/UserController.php
 
-### L45 [パフォーマンス][確信度:高] N+1問題の可能性
+### L45 [パフォーマンス][確信度: 🔴 高] N+1問題の可能性
 
 foreachループ内で$user->postsを呼び出しているため、ユーザー数分のクエリが発行されます。
 コントローラーメソッドの冒頭で User::with('posts')->get() として事前ロードしてください。
@@ -355,7 +356,7 @@ foreach ($users as $user) {
 }
 ```
 
-### L120 [設計][確信度:中] Fat Controllerの兆候
+### L120 [設計][確信度: 🟡 中] Fat Controllerの兆候
 
 storeメソッドが80行を超えています。バリデーション後のユーザー作成処理と
 メール送信処理を UserRegistrationService などに切り出すことを推奨します。
@@ -364,7 +365,7 @@ storeメソッドが80行を超えています。バリデーション後のユ�
 
 ## app/Services/OrderService.php
 
-### L33 [セキュリティ][確信度:高] マスアサインメント脆弱性
+### L33 [セキュリティ][確信度: 🔴 高 ] マスアサインメント脆弱性
 
 $request->all() を Order::create に直接渡しています。Orderモデルに $fillable が
 設定されていないため、任意のカラムを書き換えられるリスクがあります。
