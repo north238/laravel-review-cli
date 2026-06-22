@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/north238/lrv/internal/config"
@@ -67,10 +66,10 @@ func NewRootCommand() *cobra.Command {
 			}
 
 			// ファイル出力
-			formatter := output.MarkdownFormatter{}
-			err = formatter.Format(os.Stdout, aggregatedResult)
+			formatter := &output.MarkdownFormatter{}
+			err = output.Write(opts.OutputPath, aggregatedResult, formatter)
 			if err != nil {
-				return fmt.Errorf("failed to Format: %v", err)
+				return fmt.Errorf("failed to Write: %v", err)
 			}
 
 			return nil
