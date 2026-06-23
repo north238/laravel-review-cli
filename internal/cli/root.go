@@ -28,17 +28,6 @@ func NewRootCommand() *cobra.Command {
 				return fmt.Errorf("failed to config: %v", err)
 			}
 
-			focusList := map[string]bool{
-				"performance": true,
-				"security":    true,
-				"design":      true,
-			}
-			for _, f := range opts.Focus {
-				if !focusList[f] {
-					return fmt.Errorf("invalid focus value: %v (valid values: performance, security, design)", f)
-				}
-			}
-
 			client, err := llm.NewAnthropicClient(config.APIKey)
 			if err != nil {
 				return fmt.Errorf("failed to NewAnthropicClient: %v", err)
@@ -52,13 +41,20 @@ func NewRootCommand() *cobra.Command {
 				return fmt.Errorf("failed to GetDiff: %v", err)
 			}
 
+			// 全ての観点を集約
 			providers := []review.Provider{
 				prompt.NewPerformanceProvider(),
 				prompt.NewSecurityProvider(),
 				prompt.NewDesignProvider(),
 			}
 
-			r := review.NewReviewer(client, providers, config.Model)
+			// 観点の指定があれば絞り込む
+			filterProviders, err := review.FilterProviders(opts.Focus, providers)
+			if err != nil {
+				return fmt.Errorf("failed to FilterProviders: %v", err)
+			}
+
+			r := review.NewReviewer(client, filterProviders, config.Model)
 
 			aggregatedResult, err := r.Run(ctx, diffCtx)
 			if err != nil {

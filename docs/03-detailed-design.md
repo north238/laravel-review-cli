@@ -95,33 +95,34 @@ lrv/
 パッケージ間の依存関係を以下に示す。依存は単方向とし、循環依存を禁止する。
 
 ```text
-                      ┌─────────┐
-                      │   cmd   │
-                      └────┬────┘
+                      ┌──────────┐
+                      │   cmd    │
+                      └────┬─────┘
+                           │
+                           ▼
+                      ┌──────────┐
+                      │   cli    │
+                      └────┬─────┘
                            │
                            ▼
                       ┌─────────┐
-                      │   cli   │
-                      └────┬────┘
-                           │
-                           ▼
-                      ┌─────────┐
-           ┌──────────│ review  │──────────┐
-           │          └────┬────┘          │
-           │               │               │
-           ▼               ▼               ▼
-     ┌─────────┐     ┌─────────┐     ┌─────────┐
-     │   git   │     │   llm   │     │ output  │
-     └─────────┘     └────┬────┘     └─────────┘
-                          │
-                          ▼
-                     ┌─────────┐
-                     │ prompt  │
-                     └─────────┘
+        ┌────────┬────│ review  │────┬────────┐
+        │        │    └─────────┘    │        │
+        │        │         ▲         │        │
+        ▼        ▼         │ (※)     ▼        ▼
+   ┌────────┐ ┌────────┐ ┌────────┐ ┌────────┐
+   │  git   │ │  llm   │ │ prompt │ │ output │
+   └────────┘ └────────┘ └────────┘ └────────┘
+
+   ※ prompt → review : prompt の各実装が review.Provider を
+     満たし review.Aspect を返すため、prompt は review に依存する
+     （review が依存するのは prompt の具体実装、prompt が依存するのは
+       review のインターフェース・型。抽象を介するため循環ではない）
 
                      ┌─────────┐
                      │ config  │ ← すべてのパッケージから参照可
                      └─────────┘
+
 ```
 
 ### 2.3 各パッケージの責務
@@ -132,8 +133,8 @@ lrv/
 | cli        | コマンドライン解析、オプション管理、reviewパッケージへの委譲 | review, config           |
 | review     | レビューの実行制御、結果統合、指摘データの管理               | llm, git, prompt, output |
 | git        | Git操作（差分取得、ブランチ操作、分岐元検出）                | -                        |
-| llm        | LLM API呼び出し、プロバイダ抽象化                            | prompt                   |
-| prompt     | 観点別プロンプトテンプレートの保持                           | -                        |
+| llm        | LLM API呼び出し、プロバイダ抽象化                            | -                        |
+| prompt     | 観点別プロンプトテンプレートの保持                           | review                   |
 | output     | レビュー結果の整形・出力                                     | -                        |
 | config     | 環境変数による設定管理                                       | -                        |
 
@@ -325,8 +326,7 @@ type Provider interface {
 type Options struct {
     BaseBranch string    // --base
     OutputPath string    // --output, -o
-    Focus      []Aspect  // --focus
-    ShowVersion bool     // --version
+    Focus      []string  // --focus
 }
 ```
 

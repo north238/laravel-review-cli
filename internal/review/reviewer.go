@@ -34,6 +34,43 @@ type Content struct {
 	CodeSnippet string `json:"code_snippet"`
 }
 
+var aspectMap = map[string]Aspect{
+	"performance": AspectPerformance,
+	"security":    AspectSecurity,
+	"design":      AspectDesign,
+}
+
+// 観点の絞り込み関数
+func FilterProviders(focus []string, providers []Provider) ([]Provider, error) {
+	// 空のスライスであればそのまま返却
+	if len(focus) == 0 {
+		return providers, nil
+	}
+
+	var result []Provider
+	focusSet := make(map[Aspect]bool)
+
+	// 入力値を aspectMap で比較して一致しない場合は即エラー
+	for _, s := range focus {
+		a, ok := aspectMap[s]
+		if !ok {
+			return nil, fmt.Errorf("不正な観点名 %q: %w", s, ErrInvalidAspect)
+		}
+
+		focusSet[a] = true
+	}
+
+	// 一致する観点を返却
+	for _, provider := range providers {
+		if focusSet[provider.Aspect()] {
+			result = append(result, provider)
+		}
+	}
+
+	return result, nil
+}
+
+// 初期化関数
 func NewReviewer(client llm.Client, providers []Provider, model string) *Reviewer {
 	return &Reviewer{
 		llmClient: client,
@@ -42,6 +79,7 @@ func NewReviewer(client llm.Client, providers []Provider, model string) *Reviewe
 	}
 }
 
+// レビュー実行関数
 func (r *Reviewer) Run(ctx context.Context, diffCtx *git.DiffContext) (*AggregatedResult, error) {
 	eg, groupCtx := errgroup.WithContext(ctx)
 
@@ -89,6 +127,7 @@ func (r *Reviewer) Run(ctx context.Context, diffCtx *git.DiffContext) (*Aggregat
 	return aggregatedResult, nil
 }
 
+// 観点ごとの実行関数
 func (r *Reviewer) reviewOne(ctx context.Context, provider Provider, diffCtx *git.DiffContext) (*ReviewResult, error) {
 	// 返却値の構造を宣言（冗長な記述を避けるため）
 	result := &ReviewResult{Aspect: provider.Aspect()}
