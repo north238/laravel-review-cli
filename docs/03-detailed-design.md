@@ -133,8 +133,8 @@ lrv/
 | cli        | コマンドライン解析、オプション管理、reviewパッケージへの委譲 | review, config           |
 | review     | レビューの実行制御、結果統合、指摘データの管理               | llm, git, prompt, output |
 | git        | Git操作（差分取得、ブランチ操作、分岐元検出）                | -                        |
-| llm        | LLM API呼び出し、プロバイダ抽象化                            | -                    |
-| prompt     | 観点別プロンプトテンプレートの保持                           | review                        |
+| llm        | LLM API呼び出し、プロバイダ抽象化                            | -                        |
+| prompt     | 観点別プロンプトテンプレートの保持                           | review                   |
 | output     | レビュー結果の整形・出力                                     | -                        |
 | config     | 環境変数による設定管理                                       | -                        |
 
