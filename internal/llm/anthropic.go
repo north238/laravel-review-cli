@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 )
 
@@ -86,13 +87,15 @@ func (c *AnthropicClient) Review(ctx context.Context, req ReviewRequest) (*Revie
 	// リクエストボディー型変換
 	body, err := json.Marshal(APIRequestBody)
 	if err != nil {
-		return nil, err
+		slog.Warn("failed to marshal request body", "error", err)
+		return nil, fmt.Errorf("marshal request body: %w", ErrRequestBuildFailed)
 	}
 
 	// HTTPリクエストの生成
 	apiReq, err := http.NewRequestWithContext(ctx, "POST", c.URL, bytes.NewReader(body))
 	if err != nil {
-		return nil, err
+		slog.Warn("failed to create http request", "error", err)
+		return nil, fmt.Errorf("create http request: %w", ErrRequestBuildFailed)
 	}
 
 	// ヘッダーをセット
@@ -104,37 +107,45 @@ func (c *AnthropicClient) Review(ctx context.Context, req ReviewRequest) (*Revie
 	resp, err := c.HTTPClient.Do(apiReq)
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
+			slog.Error("http request timed out")
 			return nil, fmt.Errorf("%w: %w", ErrAPITimeout, err)
 		}
-		return nil, err
+
+		slog.Warn("http request failed", "error", err)
+		return nil, fmt.Errorf("http request failed: %w", ErrAPIUnexpectedResponse)
 	}
 	defer resp.Body.Close()
 
 	// レスポンスのステータス確認
 	// 401認証エラー
 	if resp.StatusCode == http.StatusUnauthorized {
+		slog.Warn("unexpected status code", "status", resp.StatusCode)
 		return nil, ErrAPIAuthFailed
 	}
 	// 500系エラー
 	if resp.StatusCode >= http.StatusInternalServerError {
+		slog.Warn("unexpected status code", "status", resp.StatusCode)
 		return nil, ErrAPIUnexpectedResponse
 	}
 	// それ以外400系など
 	if resp.StatusCode >= 400 {
+		slog.Warn("unexpected status code", "status", resp.StatusCode)
 		return nil, ErrAPIUnexpectedResponse
 	}
 
 	// レスポンスボディーの取り出し
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, err
+		slog.Warn("failed to read response body", "error", err)
+		return nil, fmt.Errorf("read response body: %w", ErrAPIUnexpectedResponse)
 	}
 
 	// 構造体へ格納
 	var apiResponse anthropicAPIResponse
 	err = json.Unmarshal(respBody, &apiResponse)
 	if err != nil {
-		return nil, err
+		slog.Warn("failed to unmarshal response", "error", err)
+		return nil, fmt.Errorf("unmarshal response: %w", ErrAPIUnexpectedResponse)
 	}
 
 	// contentの存在確認、なければエラーで返却
