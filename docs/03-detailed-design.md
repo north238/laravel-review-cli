@@ -617,9 +617,11 @@ func main() {
 
 func determineExitCode(err error) int {
     switch {
-    case errors.Is(err, ErrInvalidOption):
+    case errors.Is(err, git.ErrBranchNotFound),
+         errors.Is(err, review.ErrInvalidAspect):
         return 1
     case errors.Is(err, git.ErrNotGitRepository),
+         errors.Is(err, git.ErrNoBaseDetected),
          errors.Is(err, llm.ErrAPIKeyMissing):
         return 2
     case errors.Is(err, llm.ErrAPITimeout),
