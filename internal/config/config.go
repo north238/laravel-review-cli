@@ -1,7 +1,6 @@
 package config
 
 import (
-	"fmt"
 	"os"
 	"strconv"
 )
@@ -12,11 +11,8 @@ type Config struct {
 	Timeout int
 }
 
-func NewConfig() (*Config, error) {
+func NewConfig() *Config {
 	apikey := os.Getenv("ANTHROPIC_API_KEY")
-	if apikey == "" {
-		return nil, fmt.Errorf("invalied to APIKey")
-	}
 
 	model := os.Getenv("LRV_MODEL")
 	if model == "" {
@@ -34,5 +30,5 @@ func NewConfig() (*Config, error) {
 		Timeout: timeout,
 	}
 
-	return config, nil
+	return config
 }

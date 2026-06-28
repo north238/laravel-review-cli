@@ -23,14 +23,11 @@ func NewRootCommand() *cobra.Command {
 		Long:  "lrvはLaravelプロジェクトのプルリクエスト作成前にLLMを用いたセルフレビューを実行するCLIツールです。パフォーマンス・セキュリティ・設計の3観点を並行してレビューし、確信度付きの指摘をMarkdown形式で出力します。",
 
 		RunE: func(cmd *cobra.Command, args []string) error {
-			config, err := config.NewConfig()
-			if err != nil {
-				return fmt.Errorf("failed to config: %v", err)
-			}
+			config := config.NewConfig()
 
 			client, err := llm.NewAnthropicClient(config.APIKey)
 			if err != nil {
-				return fmt.Errorf("failed to NewAnthropicClient: %v", err)
+				return fmt.Errorf("failed to NewAnthropicClient: %w", err)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.Timeout)*time.Second)
@@ -38,7 +35,7 @@ func NewRootCommand() *cobra.Command {
 
 			diffCtx, err := git.GetDiff(ctx, opts.BaseBranch)
 			if err != nil {
-				return fmt.Errorf("failed to GetDiff: %v", err)
+				return fmt.Errorf("failed to GetDiff: %w", err)
 			}
 
 			// 全ての観点を集約
@@ -51,27 +48,28 @@ func NewRootCommand() *cobra.Command {
 			// 観点の指定があれば絞り込む
 			filterProviders, err := review.FilterProviders(opts.Focus, providers)
 			if err != nil {
-				return fmt.Errorf("failed to FilterProviders: %v", err)
+				return fmt.Errorf("failed to FilterProviders: %w", err)
 			}
 
 			r := review.NewReviewer(client, filterProviders, config.Model)
 
 			aggregatedResult, err := r.Run(ctx, diffCtx)
 			if err != nil {
-				return fmt.Errorf("failed to Run: %v", err)
+				return fmt.Errorf("failed to Run: %w", err)
 			}
 
 			// ファイル出力
 			formatter := &output.MarkdownFormatter{}
 			err = output.Write(opts.OutputPath, aggregatedResult, formatter)
 			if err != nil {
-				return fmt.Errorf("failed to Write: %v", err)
+				return fmt.Errorf("failed to Write: %w", err)
 			}
 
 			return nil
 		},
 	}
 
+	rootCmd.SilenceErrors = true
 	rootCmd.SilenceUsage = true
 	rootCmd.Flags().StringVar(&opts.BaseBranch, "base", "", "差分取得時のベースブランチを指定")
 	rootCmd.Flags().StringVarP(&opts.OutputPath, "output", "o", "", "出力先を指定")
