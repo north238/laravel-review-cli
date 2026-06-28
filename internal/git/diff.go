@@ -2,8 +2,7 @@ package git
 
 import (
 	"context"
-	"fmt"
-	"os"
+	"log/slog"
 	"os/exec"
 	"strings"
 )
@@ -55,7 +54,7 @@ func GetDiff(ctx context.Context, baseBranch string) (*DiffContext, error) {
 		diffOutCmd := exec.CommandContext(ctx, "git", "diff", baseBranch+"...HEAD", "--", path)
 		diffOut, err := diffOutCmd.Output()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: failed to get diff for %s: %v\n", path, err)
+			slog.Warn("failed to get diff", "path", path, "error", err)
 			continue
 		}
 		diffStr := strings.TrimSpace(string(diffOut))
@@ -64,7 +63,7 @@ func GetDiff(ctx context.Context, baseBranch string) (*DiffContext, error) {
 		fullOutCmd := exec.CommandContext(ctx, "git", "show", "HEAD:"+path)
 		fullOut, err := fullOutCmd.Output()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "warning: failed to get content for %s: %v\n", path, err)
+			slog.Warn("failed to get content", "path", path, "error", err)
 			continue
 		}
 		fullStr := string(fullOut)

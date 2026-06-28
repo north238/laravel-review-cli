@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -54,7 +54,8 @@ func FilterProviders(focus []string, providers []Provider) ([]Provider, error) {
 	for _, s := range focus {
 		a, ok := aspectMap[s]
 		if !ok {
-			return nil, fmt.Errorf("不正な観点名 %q: %w", s, ErrInvalidAspect)
+			slog.Warn("invalid aspect", "aspect", s)
+			return nil, fmt.Errorf("invalid aspect: %w", ErrInvalidAspect)
 		}
 
 		focusSet[a] = true
@@ -171,7 +172,8 @@ func parseFindings(content string, aspect Aspect) ([]Finding, error) {
 	var responseFindings Findings
 	err := json.Unmarshal([]byte(content), &responseFindings)
 	if err != nil {
-		return nil, fmt.Errorf("【ERROR】failed to json parse: %w", err)
+		slog.Warn("failed to parse response", "error", err)
+		return nil, fmt.Errorf("failed to parse response: %w", ErrParseResponse)
 	}
 
 	// []Contentを[]Findingに変換
@@ -183,8 +185,8 @@ func parseFindings(content string, aspect Aspect) ([]Finding, error) {
 		case ConfidenceHigh, ConfidenceMedium, ConfidenceLow:
 			// 値をそのまま返却（何もしない）
 		default:
+			slog.Warn("invalid confidence value", "confidence", finding.Confidence)
 			confidence = ConfidenceMedium
-			fmt.Fprintf(os.Stderr, "【WARNING】invalid to confidence value: %s\n", finding.Confidence)
 		}
 
 		findings = append(findings, Finding{

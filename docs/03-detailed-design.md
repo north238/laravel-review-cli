@@ -572,54 +572,109 @@ eg.Go(func() error {
 
 ## 7. エラー処理設計
 
-### 7.1 エラー型の定義
+### 7.1 センチネルエラーの定義
 
-Goの標準的なエラーパターンに従い、カスタムエラー型を定義する。
+Goの標準的なエラーパターンに従い、パッケージごとにセンチネルエラーを定義する。各エラーの定義文字列には、原因に加えて利用者向けの対処方法を英語で含める（基本設計書7.2の設計原則による）。
 
 ```go
-// internal/git/errors.go (例)
-
+// internal/git/errors.go
 var (
-    ErrNotGitRepository = errors.New("not a git repository")
-    ErrBranchNotFound   = errors.New("branch not found")
-    ErrNoBaseDetected   = errors.New("base branch could not be detected")
+    ErrNotGitRepository = errors.New("not a git repository; run lrv inside a git repository")
+    ErrBranchNotFound   = errors.New("specified branch does not exist; check the branch name and try again")
+    ErrNoBaseDetected   = errors.New("could not detect the base branch automatically; specify one explicitly with --base")
 )
 
 // internal/llm/errors.go
-
 var (
-    ErrAPIKeyMissing    = errors.New("API key is not set")
-    ErrAPIAuthFailed    = errors.New("API authentication failed")
-    ErrAPITimeout       = errors.New("API request timed out")
+    ErrRequestBuildFailed    = errors.New("failed to build the API request; this is an internal error, please retry")
+    ErrAPIKeyMissing         = errors.New("ANTHROPIC_API_KEY is not set; set the environment variable and try again")
+    ErrAPIAuthFailed         = errors.New("API authentication failed; verify that your API key is valid")
+    ErrAPITimeout            = errors.New("API request timed out; check your network or increase LRV_TIMEOUT")
+    ErrAPIUnexpectedResponse = errors.New("unexpected response from API; please try again later")
+)
+
+// internal/review/errors.go
+var (
+    ErrInvalidAspect = errors.New("invalid aspect; valid values are performance, security, design")
+    ErrParseResponse = errors.New("failed to parse the review response; please try again")
 )
 ```
 
-### 7.2 エラーラッピング
+センチネルエラーは「`errors.Is` による分類キー」と「利用者向け表示文言」の二役を担う。利用者は開発者でありCLIの慣例に従うため、表示は英語とし、別途の変換テーブルを設けず定義文字列をそのまま利用者向けメッセージとして用いる。
 
-下位層のエラーは`fmt.Errorf("... %w", err)`でラップし、上位層では`errors.Is`/`errors.As`で判別する。
+### 7.2 エラーラッピングと浄化
 
-### 7.3 終了コードの決定
+下位層のエラーは上位層へ伝播する際、以下の方針で扱う。
 
-基本設計書の終了コード仕様（4.3）に従い、`main.go`でエラー種別に応じた終了コードを返す。
+| 対象                                           | 方針                                                                 |
+| ---------------------------------------------- | -------------------------------------------------------------------- |
+| 中身を保証できない生エラー（外部I/O、APIなど） | `%w`で詰めず、センチネルエラーのみをラップする（浄化）               |
+| 生エラーの詳細                                 | `slog`で開発者向けに記録し、利用者向け出力には伝播させない           |
+| センチネルエラー                               | `fmt.Errorf("文脈: %w", センチネル)`でラップし、文脈で発生箇所を示す |
+
+この方針により、利用者向け出力経路（`result.Error`、トップレベルエラー）には中身を保証できるセンチネルエラーのみが流れ、秘匿情報（APIキー等）の漏洩を防ぐ（NFR-008）。
+
+ラッピング例：
+
+```go
+// 生エラーは slog でログのみ、戻り値はセンチネルだけ
+body, err := json.Marshal(apiRequestBody)
+if err != nil {
+    slog.Warn("failed to marshal request body", "error", err)
+    return nil, fmt.Errorf("marshal request body: %w", ErrRequestBuildFailed)
+}
+```
+
+#### 浄化の例外：context.DeadlineExceeded
+
+浄化の目的は「秘匿情報や中身を保証できない生エラーを漏らさないこと」であり、あらゆる生エラーを機械的に捨てることではない。`context.DeadlineExceeded` は標準ライブラリ定義の既知エラーで、中身が確定しており秘匿情報を含まない。かつ `review.reviewOne` がこのエラーをチェーン上で `errors.Is` 判定し、全体停止（errgroupへの伝播）を制御している。このため、タイムアウト時は例外的に生エラーをチェーンに残す。
+
+```go
+resp, err := c.HTTPClient.Do(apiReq)
+if err != nil {
+    if errors.Is(err, context.DeadlineExceeded) {
+        slog.Error("http request timed out")
+        return nil, fmt.Errorf("%w: %w", ErrAPITimeout, err) // 両方をチェーンに残す
+    }
+    slog.Warn("http request failed", "error", err)
+    return nil, fmt.Errorf("http request failed: %w", ErrAPIUnexpectedResponse)
+}
+```
+
+`ErrAPITimeout`（分類用）と `context.DeadlineExceeded`（reviewOneの停止判定用）の両方を、それぞれ異なる消費者が必要とするため、両者をチェーンに残す。
+
+### 7.3 終了コードの決定と利用者向け出力
+
+基本設計書の終了コード仕様（4.3）に従い、`main.go`でエラー種別に応じた終了コードを返す。終了コードの判定（多対一：複数センチネルを一コードに束ねる）と、利用者向けメッセージ（一対一：各センチネルが固有文言を持つ）は、別々の軸として扱う。
 
 ```go
 // cmd/lrv/main.go
 
 func main() {
-    if err := run(); err != nil {
+    // slog をプロセス起動時に初期化し、出力先を標準エラー出力に固定（基本設計書6.1）
+    logger := slog.New(slog.NewTextHandler(os.Stderr, nil))
+    slog.SetDefault(logger)
+
+    err := cli.NewRootCommand().Execute()
+    if err != nil {
         exitCode := determineExitCode(err)
-        if exitCode != 0 {
+        // コード4（内部エラー・未知のエラー）は生エラーの内容を出さず固定文言で応答（NFR-008）
+        if exitCode == 4 {
+            fmt.Fprintln(os.Stderr, "an unexpected error occurred; please try again")
+        } else {
             fmt.Fprintln(os.Stderr, err.Error())
-            os.Exit(exitCode)
         }
+        os.Exit(exitCode)
     }
 }
 
 func determineExitCode(err error) int {
     switch {
-    case errors.Is(err, ErrInvalidOption):
+    case errors.Is(err, git.ErrBranchNotFound),
+         errors.Is(err, review.ErrInvalidAspect):
         return 1
     case errors.Is(err, git.ErrNotGitRepository),
+         errors.Is(err, git.ErrNoBaseDetected),
          errors.Is(err, llm.ErrAPIKeyMissing):
         return 2
     case errors.Is(err, llm.ErrAPITimeout),
@@ -632,12 +687,43 @@ func determineExitCode(err error) int {
 }
 ```
 
-### 7.4 秘匿情報の保護
+`ErrRequestBuildFailed`・`ErrParseResponse` はセンチネルだが利用者に対処手段がないため `case` に列挙せず `default`（コード4）に委ね、固定の汎用メッセージで応答する。これにより、内部エラー系のセンチネルが将来増えても `determineExitCode` の改修を要しない。
 
-NFR-008に基づき、エラーメッセージにAPIキーを含めない設計とする。
+#### Cobra との責務分担
 
-- LLMクライアント内でAPIキーを持つ構造体は、文字列化（`String()`メソッド等）を実装しない
-- HTTPリクエストのダンプが必要な場合も、`Authorization`ヘッダをマスクする
+エラー出力と終了コードを `main` に一本化するため、Cobra のデフォルトエラー出力を抑制する。
+
+```go
+rootCmd.SilenceErrors = true // エラーメッセージ出力を main に委ねる
+rootCmd.SilenceUsage  = true // エラー時の Usage 表示を抑制
+```
+
+`SilenceErrors` を設定しない場合、Cobra が独自に `Error: <err>` を出力し、`main` の出力と二重になる。終了コードの制御を `determineExitCode` に集約するため、出力も `main` に統一する。
+
+### 7.4 ログ出力方針
+
+開発者向けの診断ログは `log/slog` に統一する。`fmt.Fprintf(os.Stderr, ...)` による手書きログは用いない。
+
+| 項目       | 方針                                                                     |
+| ---------- | ------------------------------------------------------------------------ |
+| 初期化     | `main` で `slog.SetDefault` により出力先を標準エラー出力に固定           |
+| 出力先     | 標準エラー出力（レビュー結果の標準出力／ファイルと分離、基本設計書6.1）  |
+| レベル     | 処理が継続する事象は `Warn`、全体停止に至る事象は `Error`                |
+| フィールド | 可変値はキー・バリューで構造化（例：`"path", path`, `"error", err`）     |
+| 秘匿情報   | ログに乗せる値が秘匿情報を含まないことを確認（センチネル混入時点を追跡） |
+
+ループ内で出力するログには、処理中の要素を特定するフィールド（例：`path`）を付与し、同一メッセージの繰り返しを区別可能にする。
+
+### 7.5 利用者向け出力と開発者向けログの分離
+
+同一のエラー事象を、二つの経路に流す。
+
+| 経路                 | 宛先           | 内容                                           | 形式             |
+| -------------------- | -------------- | ---------------------------------------------- | ---------------- |
+| 利用者向けメッセージ | 標準エラー出力 | 浄化済みセンチネルの定義文字列（対処方法含む） | `fmt.Fprintln`   |
+| 開発者向けログ       | 標準エラー出力 | 生エラーの詳細を含む診断情報                   | `slog`（構造化） |
+
+両者は同じ標準エラー出力に出るが、目的が異なる。利用者向けは「次に何をすべきか」を伝える最終応答であり、ログレベルやタイムスタンプの装飾を持たないプレーンな出力とする。開発者向けは原因追跡のための構造化ログとする。
 
 ---
 
