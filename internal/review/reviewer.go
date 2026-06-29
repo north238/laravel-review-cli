@@ -19,6 +19,7 @@ type Reviewer struct {
 	llmClient llm.Client
 	providers []Provider
 	model     string
+	reporter  ProgressReporter
 }
 
 type Findings struct {
@@ -72,10 +73,11 @@ func FilterProviders(focus []string, providers []Provider) ([]Provider, error) {
 }
 
 // 初期化関数
-func NewReviewer(client llm.Client, providers []Provider, model string) *Reviewer {
+func NewReviewer(client llm.Client, providers []Provider, reporter ProgressReporter, model string) *Reviewer {
 	return &Reviewer{
 		llmClient: client,
 		providers: providers,
+		reporter:  reporter,
 		model:     model,
 	}
 }
@@ -93,10 +95,15 @@ func (r *Reviewer) Run(ctx context.Context, diffCtx *git.DiffContext) (*Aggregat
 	// 各 provider に対する goroutine 起動
 	for _, provider := range r.providers {
 		eg.Go(func() error {
+			// 進捗メッセージ（観点開始）
+			r.reporter.AspectStarted(provider.Aspect())
 			result, err := r.reviewOne(groupCtx, provider, diffCtx)
 			if err != nil {
 				return err
 			}
+
+			// 進捗メッセージ（観点終了）
+			r.reporter.AspectCompleted(provider.Aspect(), len(result.Findings), result.Error)
 
 			// mutex による結果スライスの保護
 			mu.Lock()
@@ -113,6 +120,14 @@ func (r *Reviewer) Run(ctx context.Context, diffCtx *git.DiffContext) (*Aggregat
 
 	// レビュー実行時間取得
 	duration := time.Since(startTime)
+
+	// 総指摘件数を集計
+	totalFindings := 0
+	for _, res := range results {
+		totalFindings += len(res.Findings)
+	}
+	// 進捗メッセージ（終了）
+	r.reporter.Finished(duration, totalFindings)
 
 	aggregatedResult := &AggregatedResult{
 		Results: results,

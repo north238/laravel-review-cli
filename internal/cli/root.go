@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/north238/lrv/internal/config"
@@ -33,10 +34,15 @@ func NewRootCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(config.Timeout)*time.Second)
 			defer cancel()
 
+			// 進捗メッセージ初期化
+			reporter := output.NewStderrProgressReporter(os.Stderr)
+
 			diffCtx, err := git.GetDiff(ctx, opts.BaseBranch)
 			if err != nil {
 				return fmt.Errorf("failed to GetDiff: %w", err)
 			}
+			// 進捗メッセージ（変更ファイル）
+			reporter.DiffFetched(len(diffCtx.Files))
 
 			// 全ての観点を集約
 			providers := []review.Provider{
@@ -51,7 +57,7 @@ func NewRootCommand() *cobra.Command {
 				return fmt.Errorf("failed to FilterProviders: %w", err)
 			}
 
-			r := review.NewReviewer(client, filterProviders, config.Model)
+			r := review.NewReviewer(client, filterProviders, reporter, config.Model)
 
 			aggregatedResult, err := r.Run(ctx, diffCtx)
 			if err != nil {
