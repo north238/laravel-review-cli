@@ -66,26 +66,9 @@ func NewAnthropicClient(apiKey string) (*AnthropicClient, error) {
 
 // リクエスト整形→API接続→レスポンス返却
 func (c *AnthropicClient) Review(ctx context.Context, req ReviewRequest) (*ReviewResponse, error) {
-	// リクエストボディー整形
-	APIRequestBody := anthropicAPIRequestBody{
-		MaxTokens: req.MaxTokens,
-		Messages: []messages{
-			{
-				Content: req.UserPrompt,
-				Role:    "user",
-			},
-		},
-		Model: req.Model,
-		System: []systemMessages{
-			{
-				Text: req.SystemPrompt,
-				Type: "text",
-			},
-		},
-	}
 
-	// リクエストボディー型変換
-	body, err := json.Marshal(APIRequestBody)
+	// リクエストボディ整形
+	body, err := buildRequestBody(req)
 	if err != nil {
 		slog.Warn("failed to marshal request body", "error", err)
 		return nil, fmt.Errorf("marshal request body: %w", ErrRequestBuildFailed)
@@ -164,4 +147,27 @@ func (c *AnthropicClient) Review(ctx context.Context, req ReviewRequest) (*Revie
 		Content: content,
 		Usage:   Usage(apiResponse.Usage),
 	}, nil
+}
+
+// リクエストを組み立てる
+func buildRequestBody(req ReviewRequest) ([]byte, error) {
+	// リクエストボディー整形
+	APIRequestBody := anthropicAPIRequestBody{
+		MaxTokens: req.MaxTokens,
+		Messages: []messages{
+			{
+				Content: req.UserPrompt,
+				Role:    "user",
+			},
+		},
+		Model: req.Model,
+		System: []systemMessages{
+			{
+				Text: req.SystemPrompt,
+				Type: "text",
+			},
+		},
+	}
+
+	return json.Marshal(APIRequestBody)
 }
