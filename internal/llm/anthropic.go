@@ -11,6 +11,10 @@ import (
 	"net/http"
 )
 
+type Doer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
 type anthropicAPIRequestBody struct {
 	MaxTokens int              `json:"max_tokens"`
 	Messages  []messages       `json:"messages"`
@@ -47,7 +51,7 @@ type AnthropicClient struct {
 	URL        string
 	Version    string
 	APIKey     string
-	HTTPClient *http.Client
+	HTTPClient Doer
 }
 
 // API接続の初期化
@@ -123,30 +127,7 @@ func (c *AnthropicClient) Review(ctx context.Context, req ReviewRequest) (*Revie
 		return nil, fmt.Errorf("read response body: %w", ErrAPIUnexpectedResponse)
 	}
 
-	// 構造体へ格納
-	var apiResponse anthropicAPIResponse
-	err = json.Unmarshal(respBody, &apiResponse)
-	if err != nil {
-		slog.Warn("failed to unmarshal response", "error", err)
-		return nil, fmt.Errorf("unmarshal response: %w", ErrAPIUnexpectedResponse)
-	}
-
-	// contentの存在確認、なければエラーで返却
-	content := ""
-	for _, v := range apiResponse.Content {
-		if v.Type == "text" {
-			content = v.Text
-		}
-	}
-	if content == "" {
-		return nil, ErrAPIUnexpectedResponse
-	}
-
-	// レスポンス返却
-	return &ReviewResponse{
-		Content: content,
-		Usage:   Usage(apiResponse.Usage),
-	}, nil
+	return parseResponse(respBody)
 }
 
 // リクエストを組み立てる
@@ -170,4 +151,32 @@ func buildRequestBody(req ReviewRequest) ([]byte, error) {
 	}
 
 	return json.Marshal(APIRequestBody)
+}
+
+// レスポンスを作成する
+func parseResponse(respBody []byte) (*ReviewResponse, error) {
+	// 構造体へ格納
+	var apiResponse anthropicAPIResponse
+	err := json.Unmarshal(respBody, &apiResponse)
+	if err != nil {
+		slog.Warn("failed to unmarshal response", "error", err)
+		return nil, fmt.Errorf("unmarshal response: %w", ErrAPIUnexpectedResponse)
+	}
+
+	// contentの存在確認、なければエラーで返却
+	content := ""
+	for _, v := range apiResponse.Content {
+		if v.Type == "text" {
+			content = v.Text
+		}
+	}
+	if content == "" {
+		return nil, ErrAPIUnexpectedResponse
+	}
+
+	// レスポンス返却
+	return &ReviewResponse{
+		Content: content,
+		Usage:   Usage(apiResponse.Usage),
+	}, nil
 }
