@@ -37,7 +37,13 @@ func NewRootCommand() *cobra.Command {
 			// 進捗メッセージ初期化
 			reporter := output.NewStderrProgressReporter(os.Stderr)
 
-			diffCtx, err := git.GetDiff(ctx, opts.BaseBranch)
+			// 対象ディレクトリを取得
+			dir, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to os.Getwd: %w", err)
+			}
+
+			diffCtx, err := git.GetDiff(ctx, opts.BaseBranch, dir)
 			if err != nil {
 				return fmt.Errorf("failed to GetDiff: %w", err)
 			}

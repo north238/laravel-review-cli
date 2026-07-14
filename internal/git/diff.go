@@ -20,14 +20,14 @@ type ChangedFile struct {
 }
 
 // 現在のブランチとベースブランチ間の差分情報を取得する
-func GetDiff(ctx context.Context, baseBranch string) (*DiffContext, error) {
-	if err := IsGitRepository(ctx); err != nil {
+func GetDiff(ctx context.Context, baseBranch string, dir string) (*DiffContext, error) {
+	if err := IsGitRepository(ctx, dir); err != nil {
 		return nil, err
 	}
 
 	// Diffコマンド作成
 	diffCmd := exec.CommandContext(ctx, "git", "diff", "--name-only", baseBranch+"...HEAD")
-
+	diffCmd.Dir = dir
 	opts, err := diffCmd.Output()
 	if err != nil {
 		return nil, ErrBranchNotFound
@@ -41,6 +41,7 @@ func GetDiff(ctx context.Context, baseBranch string) (*DiffContext, error) {
 
 	// 選択中のブランチを取得
 	parseCmd := exec.CommandContext(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD")
+	parseCmd.Dir = dir
 	branchOut, err := parseCmd.Output()
 	if err != nil {
 		return nil, ErrBranchNotFound
@@ -52,6 +53,7 @@ func GetDiff(ctx context.Context, baseBranch string) (*DiffContext, error) {
 	for _, path := range lines {
 		// diffを取得、失敗したらcontinue
 		diffOutCmd := exec.CommandContext(ctx, "git", "diff", baseBranch+"...HEAD", "--", path)
+		diffOutCmd.Dir = dir
 		diffOut, err := diffOutCmd.Output()
 		if err != nil {
 			slog.Warn("failed to get diff", "path", path, "error", err)
@@ -61,6 +63,7 @@ func GetDiff(ctx context.Context, baseBranch string) (*DiffContext, error) {
 
 		// fullContentを取得、失敗したらcontinue
 		fullOutCmd := exec.CommandContext(ctx, "git", "show", "HEAD:"+path)
+		fullOutCmd.Dir = dir
 		fullOut, err := fullOutCmd.Output()
 		if err != nil {
 			slog.Warn("failed to get content", "path", path, "error", err)

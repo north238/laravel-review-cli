@@ -11,6 +11,10 @@ import (
 	"net/http"
 )
 
+type Doer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
 type anthropicAPIRequestBody struct {
 	MaxTokens int              `json:"max_tokens"`
 	Messages  []messages       `json:"messages"`
@@ -47,7 +51,7 @@ type AnthropicClient struct {
 	URL        string
 	Version    string
 	APIKey     string
-	HTTPClient *http.Client
+	HTTPClient Doer
 }
 
 // API接続の初期化
@@ -66,26 +70,9 @@ func NewAnthropicClient(apiKey string) (*AnthropicClient, error) {
 
 // リクエスト整形→API接続→レスポンス返却
 func (c *AnthropicClient) Review(ctx context.Context, req ReviewRequest) (*ReviewResponse, error) {
-	// リクエストボディー整形
-	APIRequestBody := anthropicAPIRequestBody{
-		MaxTokens: req.MaxTokens,
-		Messages: []messages{
-			{
-				Content: req.UserPrompt,
-				Role:    "user",
-			},
-		},
-		Model: req.Model,
-		System: []systemMessages{
-			{
-				Text: req.SystemPrompt,
-				Type: "text",
-			},
-		},
-	}
 
-	// リクエストボディー型変換
-	body, err := json.Marshal(APIRequestBody)
+	// リクエストボディ整形
+	body, err := buildRequestBody(req)
 	if err != nil {
 		slog.Warn("failed to marshal request body", "error", err)
 		return nil, fmt.Errorf("marshal request body: %w", ErrRequestBuildFailed)
@@ -140,9 +127,37 @@ func (c *AnthropicClient) Review(ctx context.Context, req ReviewRequest) (*Revie
 		return nil, fmt.Errorf("read response body: %w", ErrAPIUnexpectedResponse)
 	}
 
+	return parseResponse(respBody)
+}
+
+// リクエストを組み立てる
+func buildRequestBody(req ReviewRequest) ([]byte, error) {
+	// リクエストボディー整形
+	APIRequestBody := anthropicAPIRequestBody{
+		MaxTokens: req.MaxTokens,
+		Messages: []messages{
+			{
+				Content: req.UserPrompt,
+				Role:    "user",
+			},
+		},
+		Model: req.Model,
+		System: []systemMessages{
+			{
+				Text: req.SystemPrompt,
+				Type: "text",
+			},
+		},
+	}
+
+	return json.Marshal(APIRequestBody)
+}
+
+// レスポンスを作成する
+func parseResponse(respBody []byte) (*ReviewResponse, error) {
 	// 構造体へ格納
 	var apiResponse anthropicAPIResponse
-	err = json.Unmarshal(respBody, &apiResponse)
+	err := json.Unmarshal(respBody, &apiResponse)
 	if err != nil {
 		slog.Warn("failed to unmarshal response", "error", err)
 		return nil, fmt.Errorf("unmarshal response: %w", ErrAPIUnexpectedResponse)

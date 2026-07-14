@@ -48,7 +48,7 @@ func FilterProviders(focus []string, providers []Provider) ([]Provider, error) {
 		return providers, nil
 	}
 
-	var result []Provider
+	result := make([]Provider, 0)
 	focusSet := make(map[Aspect]bool)
 
 	// 入力値を aspectMap で比較して一致しない場合は即エラー
