@@ -27,7 +27,7 @@ func GetDiff(ctx context.Context, baseBranch string, dir string) (*DiffContext, 
 
 	// Diffコマンド作成
 	diffCmd := exec.CommandContext(ctx, "git", "diff", "--name-only", baseBranch+"...HEAD")
-
+	diffCmd.Dir = dir
 	opts, err := diffCmd.Output()
 	if err != nil {
 		return nil, ErrBranchNotFound
@@ -41,6 +41,7 @@ func GetDiff(ctx context.Context, baseBranch string, dir string) (*DiffContext, 
 
 	// 選択中のブランチを取得
 	parseCmd := exec.CommandContext(ctx, "git", "rev-parse", "--abbrev-ref", "HEAD")
+	parseCmd.Dir = dir
 	branchOut, err := parseCmd.Output()
 	if err != nil {
 		return nil, ErrBranchNotFound
@@ -52,6 +53,7 @@ func GetDiff(ctx context.Context, baseBranch string, dir string) (*DiffContext, 
 	for _, path := range lines {
 		// diffを取得、失敗したらcontinue
 		diffOutCmd := exec.CommandContext(ctx, "git", "diff", baseBranch+"...HEAD", "--", path)
+		diffOutCmd.Dir = dir
 		diffOut, err := diffOutCmd.Output()
 		if err != nil {
 			slog.Warn("failed to get diff", "path", path, "error", err)
@@ -61,6 +63,7 @@ func GetDiff(ctx context.Context, baseBranch string, dir string) (*DiffContext, 
 
 		// fullContentを取得、失敗したらcontinue
 		fullOutCmd := exec.CommandContext(ctx, "git", "show", "HEAD:"+path)
+		fullOutCmd.Dir = dir
 		fullOut, err := fullOutCmd.Output()
 		if err != nil {
 			slog.Warn("failed to get content", "path", path, "error", err)
